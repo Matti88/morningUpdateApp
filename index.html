@@ -1,109 +1,334 @@
-<html>
-
+<!DOCTYPE html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <link rel="icon" type="image/png" href="https://matti88.github.io/homeDashboard/favicon.ico">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Morning Update 2.0</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <!-- PWA Manifest Placeholder (Keep your existing manifest link here) -->
     <link rel="manifest" href="manifest.json">
-    <title>City Dashboard</title>
+    
     <style>
         body {
-            background-color: #e8e8e8;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            color: #333;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* Slate 900 */
+            color: white;
+            overflow: hidden; /* Prevent scrolling for app-like feel */
         }
 
-        h1 {
-            color: #4a90e2;
+        /* --- Animations --- */
+        @keyframes blob {
+            0% { transform: translate(0px, 0px) scale(1); }
+            33% { transform: translate(30px, -50px) scale(1.1); }
+            66% { transform: translate(-20px, 20px) scale(0.9); }
+            100% { transform: translate(0px, 0px) scale(1); }
+        }
+        .animate-blob { animation: blob 10s infinite ease-in-out; }
+        .animation-delay-2000 { animation-delay: 2s; }
+        .animation-delay-4000 { animation-delay: 4s; }
+
+        @keyframes pulse-urgent {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(0.98); }
+        }
+        .urgent-pulse { animation: pulse-urgent 2s infinite ease-in-out; }
+
+        /* --- Glassmorphism --- */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.07);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        .container {
-            width: 80%;
-            max-width: 800px;
-            margin-top: 20px;
-            padding: 20px;
-            background-color: white;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            border-radius: 8px;
-        }
+        /* --- Dynamic Themes (Applied to Body) --- */
+        /* Relaxed (Green) */
+        body.status-relaxed .bg-accent { background-color: #10b981; } /* Emerald */
+        body.status-relaxed .text-accent { color: #34d399; }
+        body.status-relaxed .orb-color { background-color: #059669; }
 
-        #clock,
-        #nextTramTime,
-        #weatherContainer {
-            font-size: 20px;
-            margin-bottom: 20px;
-        }
+        /* Rush (Orange) */
+        body.status-rush .bg-accent { background-color: #f59e0b; } /* Amber */
+        body.status-rush .text-accent { color: #fbbf24; }
+        body.status-rush .orb-color { background-color: #d97706; }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
+        /* Too Late (Red) */
+        body.status-late .bg-accent { background-color: #ef4444; } /* Red */
+        body.status-late .text-accent { color: #f87171; }
+        body.status-late .orb-color { background-color: #b91c1c; }
 
-        th,
-        td {
-            text-align: center;
-            border: 1px solid #ddd;
-            padding: 8px;
-        }
-
-        th {
-            background-color: #f2f2f2;
-        }
-
-        tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
     </style>
-    <!-- Service Worker Registration -->
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('service-worker.js')
-                    .then(registration => {
-                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
-                    })
-                    .catch(error => {
-                        console.log('ServiceWorker registration failed: ', error);
-                    });
-            });
-        }
-    </script>
 </head>
+<body class="h-screen w-screen relative status-relaxed transition-colors duration-1000">
 
-<body>
-    <div class="container">
-        <h1>Time and Next Departure</h1>
-        <div style="display: flex; flex-direction: row; align-items: center;">
-            <div id="pictureContainer"
-                style="display: flex; flex-direction: column; align-items: flex-start; border-radius: 8px;">
-                <img id="tramImage" src="./images/missedTrain.jpg"
-                    style="max-width: 200px; max-height: 200px; width: auto; height: auto;  border-radius: 8px;" />
+    <!-- Ambient Background -->
+    <div class="fixed inset-0 w-full h-full overflow-hidden -z-10">
+        <div class="absolute top-0 -left-4 w-72 h-72 orb-color rounded-full mix-blend-multiply filter blur-2xl opacity-40 animate-blob transition-colors duration-1000"></div>
+        <div class="absolute top-0 -right-4 w-72 h-72 orb-color rounded-full mix-blend-multiply filter blur-2xl opacity-40 animate-blob animation-delay-2000 transition-colors duration-1000"></div>
+        <div class="absolute -bottom-8 left-20 w-72 h-72 orb-color rounded-full mix-blend-multiply filter blur-2xl opacity-40 animate-blob animation-delay-4000 transition-colors duration-1000"></div>
+    </div>
+
+    <!-- App Container -->
+    <div class="h-full flex flex-col p-6 max-w-md mx-auto relative z-10">
+        
+        <!-- HEADER: Settings & Time -->
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h2 class="text-xs font-bold tracking-widest uppercase text-white/50">Morning Update</h2>
+                <p id="current-time" class="text-xl font-light">08:00 AM</p>
             </div>
-            <div id="textContainer"
-                style="display: flex; flex-direction: column; align-items: flex-start; border-radius: 8px; margin-left: 20px;">
-                <div>TIME: <div id="clock">01:38:56</div>
-                </div>
-                <div>Next departures:
-                    <div id="nextTramTime">05:03, 05:10, 05:17, 05:24</div>
-                    <div id="nextTimeCalc"></div>
-                </div>
+            <button onclick="toggleSettings()" class="p-2 rounded-full bg-white/5 hover:bg-white/10 transition">
+                <svg class="w-5 h-5 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+            </button>
+        </div>
+
+        <!-- MAIN CARD: Tram Countdown -->
+        <div id="tram-card" class="glass-panel rounded-3xl p-8 mb-4 text-center flex-grow flex flex-col justify-center items-center shadow-2xl transition-all duration-500">
+            
+            <div id="status-icon" class="mb-4 text-6xl">🏃</div>
+            
+            <h1 class="text-lg font-medium text-white/80 mb-2">Next Tram in</h1>
+            
+            <!-- Big Countdown -->
+            <div class="relative mb-2">
+                <span id="tram-countdown" class="text-8xl font-black text-white tracking-tighter drop-shadow-lg">--</span>
+                <span class="text-xl font-medium text-white/60 absolute top-2 -right-8">min</span>
+            </div>
+
+            <div id="status-message" class="text-2xl font-bold text-accent uppercase tracking-wide">Loading...</div>
+            <p id="tram-destination" class="text-sm text-white/40 mt-2">To Center</p>
+
+            <!-- Progress Bar -->
+            <div class="w-full h-1 bg-white/10 rounded-full mt-8 overflow-hidden">
+                <div id="time-bar" class="h-full bg-accent w-full transition-all duration-1000"></div>
             </div>
         </div>
-    </div>
-    <script src="clock.js"></script>
-    <script src="tramSchedule.js"></script>
-    </div>
-    <div class="container">
-        <h1>Vienna Weather Forecast</h1>
-        <div id="weatherContainer">
-            <!-- Weather Table Here -->
+
+        <!-- SECONDARY CARD: Weather -->
+        <div class="glass-panel rounded-3xl p-6 h-1/3 flex items-center justify-between">
+            <div class="flex flex-col">
+                <span class="text-xs font-bold text-white/50 uppercase tracking-wider mb-1">Vienna Weather</span>
+                <div class="flex items-baseline">
+                    <span id="temp" class="text-4xl font-bold">--</span>
+                    <span class="text-xl text-white/60">°C</span>
+                </div>
+                <span id="weather-desc" class="text-sm text-white/70 capitalize mt-1">--</span>
+            </div>
+            <div id="weather-icon" class="text-5xl opacity-90">⛅</div>
         </div>
-        <script src="weather.js"></script>
+
     </div>
+
+    <!-- SETTINGS MODAL -->
+    <div id="settings-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 hidden flex flex-col justify-end sm:justify-center">
+        <div class="bg-[#1e293b] w-full max-w-md mx-auto rounded-t-3xl sm:rounded-3xl p-8 border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] transform transition-transform duration-300">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold">App Settings</h2>
+                <button onclick="toggleSettings()" class="text-white/50 hover:text-white">Close</button>
+            </div>
+
+            <!-- Input: Walk Time -->
+            <div class="mb-4">
+                <label class="block text-xs uppercase tracking-widest text-white/40 mb-2">Walk to Station (Minutes)</label>
+                <input type="number" id="walk-time-input" value="8" class="w-full bg-black/20 border border-white/10 rounded-xl p-4 text-white focus:border-accent focus:outline-none transition">
+            </div>
+
+            <!-- Input: Station ID (RBL) -->
+            <div class="mb-4">
+                <label class="block text-xs uppercase tracking-widest text-white/40 mb-2">Wiener Linien RBL ID</label>
+                <div class="flex gap-2">
+                     <input type="number" id="station-id-input" value="4440" class="w-full bg-black/20 border border-white/10 rounded-xl p-4 text-white focus:border-accent focus:outline-none transition">
+                     <a href="https://till-seifert.github.io/wl-rbl-finder/" target="_blank" class="flex items-center justify-center px-4 bg-white/5 rounded-xl text-white/50 hover:bg-white/10 hover:text-white transition text-xs text-center">Find<br>ID</a>
+                </div>
+            </div>
+
+            <!-- Input: Weather Key -->
+            <div class="mb-6">
+                <label class="block text-xs uppercase tracking-widest text-white/40 mb-2">OpenWeather API Key</label>
+                <input type="text" id="weather-key-input" placeholder="Paste Key Here" class="w-full bg-black/20 border border-white/10 rounded-xl p-4 text-white focus:border-accent focus:outline-none transition">
+            </div>
+
+            <button onclick="saveSettings()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-500/30 transition">Save Changes</button>
+        </div>
+    </div>
+
+    <script>
+        // --- APP STATE ---
+        const config = {
+            walkTime: localStorage.getItem('mu_walkTime') || 8, // Minutes needed to walk to station
+            rblId: localStorage.getItem('mu_rblId') || '4440', // Example: 4440 (Volkstheater)
+            weatherKey: localStorage.getItem('mu_weatherKey') || '', // OpenWeatherMap Key
+        };
+
+        // --- DOM ELEMENTS ---
+        const els = {
+            countdown: document.getElementById('tram-countdown'),
+            statusMsg: document.getElementById('status-message'),
+            statusIcon: document.getElementById('status-icon'),
+            dest: document.getElementById('tram-destination'),
+            timeBar: document.getElementById('time-bar'),
+            temp: document.getElementById('temp'),
+            desc: document.getElementById('weather-desc'),
+            weatherIcon: document.getElementById('weather-icon'),
+            currentTime: document.getElementById('current-time'),
+            body: document.body
+        };
+
+        // --- CORE LOGIC ---
+
+        async function updateTramData() {
+            // If no RBL, use Demo Mode
+            if (!config.rblId) {
+                renderTramStatus(12, "Demo Station"); // 12 mins away
+                return;
+            }
+
+            try {
+                // Fetch from Wiener Linien Public API
+                // We use a CORS proxy (AllOrigins) because running this file locally (or in a sandbox) 
+                // often creates a "null" origin which is blocked by the API.
+                const apiUrl = `https://www.wienerlinien.at/ogd_realtime/monitor?rbl=${config.rblId}`;
+                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(apiUrl)}`;
+                
+                const res = await fetch(proxyUrl);
+                
+                if (!res.ok) throw new Error("Network response was not ok");
+                
+                const data = await res.json();
+
+                if (data.data.monitors.length > 0) {
+                    const line = data.data.monitors[0].lines[0];
+                    const nextDeparture = line.departures.departure[0].departureTime.countdown;
+                    const destination = line.towards;
+                    
+                    renderTramStatus(nextDeparture, destination);
+                } else {
+                    renderTramStatus(-1, "No Data");
+                }
+            } catch (e) {
+                console.error("Tram Fetch Error", e);
+                els.statusMsg.innerText = "Connection Error";
+                els.dest.innerText = "Check CORS / Internet";
+                els.body.classList.add('status-relaxed');
+            }
+        }
+
+        function renderTramStatus(minutes, destination) {
+            const walkTime = parseInt(config.walkTime);
+            let timeDiff = minutes - walkTime;
+            
+            // Visual Update
+            els.countdown.innerText = minutes;
+            els.dest.innerText = `Towards ${destination}`;
+
+            // Logic: Traffic Light System
+            els.body.classList.remove('status-relaxed', 'status-rush', 'status-late', 'urgent-pulse');
+            
+            if (minutes < 0) {
+                 // No Data
+                 els.statusMsg.innerText = "Offline";
+                 els.body.classList.add('status-relaxed');
+            }
+            else if (timeDiff >= 5) {
+                // Green: Plenty of time
+                els.statusMsg.innerText = "Walk Relaxed";
+                els.statusIcon.innerText = "☕";
+                els.body.classList.add('status-relaxed');
+                els.timeBar.style.width = "100%";
+            } 
+            else if (timeDiff >= 0 && timeDiff < 5) {
+                // Orange: Rush!
+                els.statusMsg.innerText = "Hurry Up!";
+                els.statusIcon.innerText = "🏃";
+                els.body.classList.add('status-rush');
+                els.timeBar.style.width = "40%";
+            } 
+            else {
+                // Red: You missed it (or need to teleport)
+                els.statusMsg.innerText = "Wait for Next";
+                els.statusIcon.innerText = "🛑";
+                els.body.classList.add('status-late');
+                els.body.classList.add('urgent-pulse'); // Add heartbeat effect
+                els.timeBar.style.width = "5%";
+            }
+        }
+
+        async function updateWeather() {
+            if (!config.weatherKey) {
+                // Demo Weather
+                els.temp.innerText = "18";
+                els.desc.innerText = "Clear Sky (Demo)";
+                els.weatherIcon.innerText = "☀️";
+                return;
+            }
+
+            try {
+                const url = `https://api.openweathermap.org/data/2.5/weather?q=Vienna&units=metric&appid=${config.weatherKey}`;
+                const res = await fetch(url);
+                const data = await res.json();
+
+                if(res.ok) {
+                    els.temp.innerText = Math.round(data.main.temp);
+                    els.desc.innerText = data.weather[0].description;
+                    
+                    // Simple Icon Logic
+                    const main = data.weather[0].main.toLowerCase();
+                    if(main.includes('cloud')) els.weatherIcon.innerText = "☁️";
+                    else if(main.includes('rain')) els.weatherIcon.innerText = "🌧️";
+                    else if(main.includes('clear')) els.weatherIcon.innerText = "☀️";
+                    else els.weatherIcon.innerText = "🌥️";
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function updateTime() {
+            const now = new Date();
+            els.currentTime.innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        // --- SETTINGS ---
+        function toggleSettings() {
+            const modal = document.getElementById('settings-modal');
+            modal.classList.toggle('hidden');
+            
+            // Pre-fill inputs
+            document.getElementById('walk-time-input').value = config.walkTime;
+            document.getElementById('station-id-input').value = config.rblId;
+            document.getElementById('weather-key-input').value = config.weatherKey;
+        }
+
+        function saveSettings() {
+            config.walkTime = document.getElementById('walk-time-input').value;
+            config.rblId = document.getElementById('station-id-input').value;
+            config.weatherKey = document.getElementById('weather-key-input').value;
+
+            localStorage.setItem('mu_walkTime', config.walkTime);
+            localStorage.setItem('mu_rblId', config.rblId);
+            localStorage.setItem('mu_weatherKey', config.weatherKey);
+
+            toggleSettings();
+            updateTramData();
+            updateWeather();
+        }
+
+        // --- INIT ---
+        setInterval(updateTime, 1000);
+        updateTime();
+        
+        updateTramData();
+        updateWeather();
+
+        // Refresh data every 60s
+        setInterval(() => {
+            updateTramData();
+            updateWeather();
+        }, 60000);
+
+    </script>
 </body>
-
 </html>

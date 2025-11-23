@@ -8,7 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700;900&display=swap" rel="stylesheet">
-    <!-- PWA Manifest Placeholder (Keep your existing manifest link here) -->
+    <!-- PWA Manifest Placeholder -->
     <link rel="manifest" href="manifest.json">
     
     <style>
@@ -137,18 +137,12 @@
             </div>
 
             <!-- Input: Station ID (RBL) -->
-            <div class="mb-4">
+            <div class="mb-6">
                 <label class="block text-xs uppercase tracking-widest text-white/40 mb-2">Wiener Linien RBL ID</label>
                 <div class="flex gap-2">
                      <input type="number" id="station-id-input" value="4440" class="w-full bg-black/20 border border-white/10 rounded-xl p-4 text-white focus:border-accent focus:outline-none transition">
                      <a href="https://till-seifert.github.io/wl-rbl-finder/" target="_blank" class="flex items-center justify-center px-4 bg-white/5 rounded-xl text-white/50 hover:bg-white/10 hover:text-white transition text-xs text-center">Find<br>ID</a>
                 </div>
-            </div>
-
-            <!-- Input: Weather Key -->
-            <div class="mb-6">
-                <label class="block text-xs uppercase tracking-widest text-white/40 mb-2">OpenWeather API Key</label>
-                <input type="text" id="weather-key-input" placeholder="Paste Key Here" class="w-full bg-black/20 border border-white/10 rounded-xl p-4 text-white focus:border-accent focus:outline-none transition">
             </div>
 
             <button onclick="saveSettings()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-500/30 transition">Save Changes</button>
@@ -159,8 +153,7 @@
         // --- APP STATE ---
         const config = {
             walkTime: localStorage.getItem('mu_walkTime') || 8, // Minutes needed to walk to station
-            rblId: localStorage.getItem('mu_rblId') || '3439', // Example: 3439 (Hlawkagasse)
-            weatherKey: localStorage.getItem('mu_weatherKey') || '', // OpenWeatherMap Key
+            rblId: localStorage.getItem('mu_rblId') || '3439', // Example: 3439 (Hlawkagasse - Direction Nußdorf)
         };
 
         // --- DOM ELEMENTS ---
@@ -180,16 +173,13 @@
         // --- CORE LOGIC ---
 
         async function updateTramData() {
-            // If no RBL, use Demo Mode
             if (!config.rblId) {
-                renderTramStatus(12, "Demo Station"); // 12 mins away
+                renderTramStatus(12, "Demo Station");
                 return;
             }
 
             try {
-                // Fetch from Wiener Linien Public API
-                // We use a CORS proxy (AllOrigins) because running this file locally (or in a sandbox) 
-                // often creates a "null" origin which is blocked by the API.
+                // Fetch from Wiener Linien Public API via CORS Proxy
                 const apiUrl = `https://www.wienerlinien.at/ogd_realtime/monitor?rbl=${config.rblId}`;
                 const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(apiUrl)}`;
                 
@@ -211,7 +201,7 @@
             } catch (e) {
                 console.error("Tram Fetch Error", e);
                 els.statusMsg.innerText = "Connection Error";
-                els.dest.innerText = "Check CORS / Internet";
+                els.dest.innerText = "Check Internet";
                 els.body.classList.add('status-relaxed');
             }
         }
@@ -228,62 +218,72 @@
             els.body.classList.remove('status-relaxed', 'status-rush', 'status-late', 'urgent-pulse');
             
             if (minutes < 0) {
-                 // No Data
                  els.statusMsg.innerText = "Offline";
                  els.body.classList.add('status-relaxed');
             }
             else if (timeDiff >= 5) {
-                // Green: Plenty of time
                 els.statusMsg.innerText = "Walk Relaxed";
                 els.statusIcon.innerText = "☕";
                 els.body.classList.add('status-relaxed');
                 els.timeBar.style.width = "100%";
             } 
             else if (timeDiff >= 0 && timeDiff < 5) {
-                // Orange: Rush!
                 els.statusMsg.innerText = "Hurry Up!";
                 els.statusIcon.innerText = "🏃";
                 els.body.classList.add('status-rush');
                 els.timeBar.style.width = "40%";
             } 
             else {
-                // Red: You missed it (or need to teleport)
                 els.statusMsg.innerText = "Wait for Next";
                 els.statusIcon.innerText = "🛑";
                 els.body.classList.add('status-late');
-                els.body.classList.add('urgent-pulse'); // Add heartbeat effect
+                els.body.classList.add('urgent-pulse');
                 els.timeBar.style.width = "5%";
             }
         }
 
         async function updateWeather() {
-            if (!config.weatherKey) {
-                // Demo Weather
-                els.temp.innerText = "18";
-                els.desc.innerText = "Clear Sky (Demo)";
-                els.weatherIcon.innerText = "☀️";
-                return;
-            }
-
             try {
-                const url = `https://api.openweathermap.org/data/2.5/weather?q=Vienna&units=metric&appid=${config.weatherKey}`;
+                // Using Open-Meteo with hardcoded Vienna Coords (as provided in user query)
+                // Added current=weather_code to get real-time icon support
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=48.2085&longitude=16.3721&current=temperature_2m,weather_code&timezone=Europe%2FBerlin`;
                 const res = await fetch(url);
                 const data = await res.json();
 
-                if(res.ok) {
-                    els.temp.innerText = Math.round(data.main.temp);
-                    els.desc.innerText = data.weather[0].description;
+                if(data.current) {
+                    els.temp.innerText = Math.round(data.current.temperature_2m);
                     
-                    // Simple Icon Logic
-                    const main = data.weather[0].main.toLowerCase();
-                    if(main.includes('cloud')) els.weatherIcon.innerText = "☁️";
-                    else if(main.includes('rain')) els.weatherIcon.innerText = "🌧️";
-                    else if(main.includes('clear')) els.weatherIcon.innerText = "☀️";
-                    else els.weatherIcon.innerText = "🌥️";
+                    // Map WMO Weather Code to Description & Icon
+                    const wmo = data.current.weather_code;
+                    const { desc, icon } = getWmoInfo(wmo);
+                    
+                    els.desc.innerText = desc;
+                    els.weatherIcon.innerText = icon;
                 }
             } catch (e) {
-                console.error(e);
+                console.error("Weather Fetch Error", e);
             }
+        }
+        
+        // Helper: Convert Open-Meteo WMO codes to Emoji/Text
+        function getWmoInfo(code) {
+            // WMO Weather interpretation codes (WW)
+            // 0: Clear sky
+            if (code === 0) return { desc: "Clear Sky", icon: "☀️" };
+            // 1, 2, 3: Mainly clear, partly cloudy, and overcast
+            if ([1, 2, 3].includes(code)) return { desc: "Cloudy", icon: "☁️" };
+            // 45, 48: Fog
+            if ([45, 48].includes(code)) return { desc: "Foggy", icon: "🌫️" };
+            // 51, 53, 55: Drizzle
+            if ([51, 53, 55].includes(code)) return { desc: "Drizzle", icon: "🌦️" };
+            // 61, 63, 65: Rain
+            if ([61, 63, 65].includes(code)) return { desc: "Rain", icon: "🌧️" };
+            // 71, 73, 75: Snow fall
+            if ([71, 73, 75].includes(code)) return { desc: "Snow", icon: "❄️" };
+            // 95, 96, 99: Thunderstorm
+            if ([95, 96, 99].includes(code)) return { desc: "Storm", icon: "⛈️" };
+            
+            return { desc: "Unknown", icon: "🌥️" };
         }
 
         function updateTime() {
@@ -299,21 +299,18 @@
             // Pre-fill inputs
             document.getElementById('walk-time-input').value = config.walkTime;
             document.getElementById('station-id-input').value = config.rblId;
-            document.getElementById('weather-key-input').value = config.weatherKey;
         }
 
         function saveSettings() {
             config.walkTime = document.getElementById('walk-time-input').value;
             config.rblId = document.getElementById('station-id-input').value;
-            config.weatherKey = document.getElementById('weather-key-input').value;
 
             localStorage.setItem('mu_walkTime', config.walkTime);
             localStorage.setItem('mu_rblId', config.rblId);
-            localStorage.setItem('mu_weatherKey', config.weatherKey);
 
             toggleSettings();
             updateTramData();
-            updateWeather();
+            updateWeather(); // Refresh weather too just in case
         }
 
         // --- INIT ---
